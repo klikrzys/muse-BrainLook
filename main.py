@@ -20,68 +20,69 @@ def keypress():
                 return a                # else return ascii code
 
 
-def eeg_calmnessBuffer(self, unused_addr, calmness):
-	print(calmness)
+class oscServer:
+	serverThread = None
 
-# def eeg_batteryStatusBuffer( self, unused_addr, StateOfCharge, FuelGaugeBatteryVoltage, ADCBatteryVoltage, Temperature ):
-	# percentageBattery = round(StateOfCharge/100) 
-	# print(percentageBattery)
+	MuseIoAdress= None
+	MuseIoPort = None
 
-# def connCheck( self, unused_addr, args, ch1, ch2, ch3, ch4 ):
-	# pass 
+	def __init__(self, adress="127.0.0.1", port=5000):
+		self.MuseIoAdress = adress 
+		self.MuseIoPort = port
 
-# def eeg_connStatusBuffer( self, unused_addr, int ):
-	# print("Connection in bytes per second: "+str(int))
+		self.serverThread = threading.Thread(target=self.run, daemon = True)
+		self.serverThread.start() 
 
-
-	
-	
-class oscServerThread(threading.Thread):
-	def __init__(self, threadID, name, ip, port):
-		threading.Thread.__init__(self)
-		self.threadID = threadID
-		self.name = name
-		self.ip = ip
-		self.port = port
-		self._stop_event = threading.Event()
-	
+	#init OSC server thread
 	def run(self):
 		from pythonosc import dispatcher
 		from pythonosc import osc_server
 
-		parser = argparse.ArgumentParser()
-
-		parser.add_argument("--ip", default=self.ip, help="The ip to listen on")
-
-		parser.add_argument("--port", type=int, default=self.port, help="The port to listen on")
-
-		args = parser.parse_args()
-
 		dispatcher = dispatcher.Dispatcher()
-		dispatcher.map("/muse/elements/experimental/mellow", print)
+		dispatcher.map("/muse/batt", print)
 
-		server = osc_server.ThreadingOSCUDPServer( (args.ip, args.port), dispatcher )
-		print("Serving on {}".format(server.server_address))
-		server.serve_forever()
-	
-	def stop(self):
-		self._stop_event.set()
+		server = osc_server.ThreadingOSCUDPServer((self.MuseIoAdress, self.MuseIoPort), dispatcher)
+		server.serve_forever()  				
+				
+class HttpServer:
+	httpServerThread = None
 
-	def stopped(self):
-		return self._stop_event.is_set()
+	def __init__(self):
+		self.httpServerThread = threading.Thread(target=self.run, daemon = True)
+		self.httpServerThread.start() 
 
-	
+	def run(self):
+		import os
+		import cherrypy
+		
+		#Http server class
+		class cherryModel(object):
+			@cherrypy.expose
+			def index(self):
+				return """Hello World XD"""	
+		
+		conf = {
+			'/': {
+				'tools.sessions.on': True,
+				'tools.staticdir.root': os.path.abspath(os.getcwd())
+			},
+			'/static': {
+				'tools.staticdir.on': True,
+				'tools.staticdir.dir': './client'
+			}
+		}
+		cherrypy.engine.signals.subscribe()
+		cherrypy.quickstart(cherryModel(), '/', conf)	
+		
 if __name__ == "__main__":
-	print("Aby wyłączyć naciśnij q albo klawisz ESC")
+	print("Aby wylaczyc nacisnij q albo klawisz ESC")
 	
-	# Init Threads
-	OSCServerThread = oscServerThread(1, "OSCServerThread", "127.0.0.1", 5000)
-
-	# Start Threads
-	OSCServerThread.start()
+	oscServer = oscServer()
+	httpServe = HttpServer()
 	
 	# Wait for exit sign
-	x = input()
-	if x == "q":
-		OSCServerThread.stop()
-		return 0
+	while 1:
+		x = input()
+		if x == "q":
+			break
+		
